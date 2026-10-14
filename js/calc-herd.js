@@ -73,9 +73,27 @@ MTF.salePlanOf = function (P) {
   return rows;
 };
 
-/* Деление фуражных коров на сухостой, родилку и дойных.
-   Сейчас по долям от межотёльного периода: одинаково для любого возраста стада.
-   Вынесено в отдельную функцию, чтобы заменить способ расчёта в одном месте. */
+/* Деление фуражных коров на сухостой, родилку и дойных по когортам отёлов.
+   Когорта — коровы, отелившиеся в одном месяце t0 (завоз нетелей, ввод своих тёлок).
+   Следующий отёл когорты через межотёльный период, затем цикл повторяется.
+   На конец месяца m, фаза = время с последнего отёла (в месяцах):
+   родилка — отёл не более calvingPenDays дней назад;
+   сухостой — до следующего отёла не более dryDays дней;
+   остальные — дойные. Сумма групп равна числу коров. */
+MTF.cohortGroups = function (P, cohorts, m) {
+  const per = MTF.calvingInterval(P) / 30;
+  let dry = 0, pen = 0, total = 0;
+  cohorts.forEach(function (c) {
+    total += c.n;
+    const phase = ((m - c.t0) % per + per) % per;
+    if (phase * 30 <= (P.calvingPenDays || 0)) pen += c.n;
+    else if ((per - phase) * 30 <= P.dryDays) dry += c.n;
+  });
+  return { dry: dry, pen: pen, milking: total - dry - pen };
+};
+
+/* Деление по долям от межотёльного периода (одинаково для любого возраста стада).
+   Нужно для оценки проектной мощности (target); в таблице стада — когорты. */
 MTF.herdGroups = function (shares, cows) {
   const dry = cows * shares.dry;
   const pen = cows * shares.pen;
@@ -97,6 +115,7 @@ MTF.calcHerd = function (p) {
   );
 
   let cows = 0;
+  const cohorts = [];  // когорты отёлов: { t0 — месяц отёла, n — число коров }
   let firstLact = 0;   // коровы в первой лактации
   const pregHeifers = {};
   const heifers = new Array(32).fill(0);
@@ -140,6 +159,8 @@ MTF.calcHerd = function (p) {
       bullsSold: 0, bullWeightKg: 0,
       heifersPurchased: 0, surplusSold: 0,
       heifersSold: 0, heifersSoldValue: 0,
+      dryAcc: 0, penAcc: 0, milkingAcc: 0,
+      dryPeak: 0, penPeak: 0, dryPenPeak: 0, milkingPeak: 0,
       warnings: []
     };
   }
@@ -170,6 +191,7 @@ MTF.calcHerd = function (p) {
 
     if (pregHeifers[m]) {
       cows += pregHeifers[m]; firstLact += pregHeifers[m];
+      cohorts.push({ t0: m, n: pregHeifers[m] });
       acc.calvings += pregHeifers[m]; delete pregHeifers[m];
     }
     // первотёлка переходит во взрослое стадо через межотёльный период
@@ -187,6 +209,7 @@ MTF.calcHerd = function (p) {
 
     const culled = cows * (cullNow / 100) / 12;
     firstLact = Math.max(0, firstLact - firstLact * (cullNow / 100) / 12);
+    if (cows > 0) { const kc = 1 - culled / cows; cohorts.forEach(function (c) { c.n *= kc; }); }
     cows -= culled;
     acc.cullSold += culled;
 
@@ -246,6 +269,7 @@ MTF.calcHerd = function (p) {
       const room = Math.max(0, target - cows);
       const enter = Math.min(heifers[fc], Math.max(0, room));
       cows += enter; firstLact += enter;
+      if (enter > 0) cohorts.push({ t0: m, n: enter });
       acc.calvings += enter;
       acc.surplusSold += heifers[fc] - enter;
       heifers[fc] = 0;
@@ -277,8 +301,13 @@ MTF.calcHerd = function (p) {
     const calfTotal = heifers.slice(0, saleAge + 1).reduce((a, b) => a + b, 0) +
                       bulls.slice(0, saleAge + 1).reduce((a, b) => a + b, 0) + surpCalf;
     const bullTotal = bulls.slice(saleAge + 1).reduce((a, b) => a + b, 0);
-    const grp = MTF.herdGroups(shares, cows);
+    const grp = MTF.cohortGroups(P, cohorts, m);
     const dry = grp.dry, pen = grp.pen, milking = grp.milking;
+    acc.dryAcc += dry; acc.penAcc += pen; acc.milkingAcc += milking;
+    acc.dryPeak = Math.max(acc.dryPeak, dry);
+    acc.penPeak = Math.max(acc.penPeak, pen);
+    acc.dryPenPeak = Math.max(acc.dryPenPeak, dry + pen);
+    acc.milkingPeak = Math.max(acc.milkingPeak, milking);
 
     // свободные места коровника, доступные под молодняк
     const freeCow = C.flexHousing ? Math.max(0, C.cowPlaces - milking) : 0;
@@ -309,6 +338,9 @@ MTF.calcHerd = function (p) {
       years.push({
         year: p.project.startYear + yIdx, idx: yIdx,
         cows: cows, milking: milking, dry: dry, pen: pen, firstLact: firstLact,
+        // среднее за год и пик года (декабрь — в полях dry, pen, milking)
+        dryAvg: acc.dryAcc / 12, penAvg: acc.penAcc / 12, milkingAvg: acc.milkingAcc / 12,
+        dryPeak: acc.dryPeak, penPeak: acc.penPeak, dryPenPeak: acc.dryPenPeak, milkingPeak: acc.milkingPeak,
         calves: calfTotal, heifers: heiferTotal, bulls: bullTotal,
         total: cows + calfTotal + heiferTotal + bullTotal,
         milkLiters: acc.milkLiters,

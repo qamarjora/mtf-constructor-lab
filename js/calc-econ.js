@@ -127,7 +127,11 @@ MTF.calcFeed = function (p, y) {
   }
   const d = 365;
   let s = 0;
-  const dryHead = (y.dry || 0) + (y.pen || 0);
+  // доля сухостоя и родилки — по среднему составу за год (когорты), объём — по поголовью года
+  const avgAll = (y.dryAvg || 0) + (y.penAvg || 0) + (y.milkingAvg || 0);
+  const dryHead = avgAll > 0
+    ? y.cows * ((y.dryAvg || 0) + (y.penAvg || 0)) / avgAll
+    : (y.dry || 0) + (y.pen || 0);
   const milkHead = Math.max(0, y.cows - dryHead);
   s += milkHead * F.dmCow * d * F.dmPriceCow / 1000;
   s += dryHead * (F.dmDry || F.dmCow) * d * F.dmPriceCow / 1000;
