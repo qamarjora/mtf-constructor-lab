@@ -161,10 +161,21 @@ MTF.calcHerd = function (p) {
       heifersSold: 0, heifersSoldValue: 0,
       dryAcc: 0, penAcc: 0, milkingAcc: 0,
       dryPeak: 0, penPeak: 0, dryPenPeak: 0, milkingPeak: 0,
+      flexPeak: 0, over: {},
       warnings: []
     };
   }
   function warn(a, t) { if (!a.warnings.includes(t)) a.warnings.push(t); }
+  // Сообщения года: по одному на группу, с пиком и числом месяцев (без усечения списка)
+  function yearWarnings(a) {
+    const out = a.warnings.slice();
+    Object.keys(a.over).forEach(function (k) {
+      const o = a.over[k];
+      out.push(o.label + ': пик ' + Math.round(o.peak) + (o.tail || '') + ' при ' + Math.round(o.cap) + ' местах' +
+        ' (' + o.months + ' мес. в году)' + (o.flexFull ? ', свободные места коровника уже заняты' : ''));
+    });
+    return out;
+  }
 
   for (let m = 1; m <= months; m++) {
     const yIdx = Math.floor((m - 1) / 12);
@@ -314,25 +325,30 @@ MTF.calcHerd = function (p) {
     const freeDry = C.flexHousing ? Math.max(0, C.dryPlaces - dry - pen) : 0;
     let flexPool = freeCow + freeDry;
 
+    // Превышение мест фиксируется помесячно; в году остаётся пик, число месяцев и одно сообщение на группу
+    function note(key, label, cur, cap, tail, flexFull) {
+      const o = acc.over[key] || (acc.over[key] = { label: label, peak: 0, cap: cap, months: 0, tail: '', flexFull: false });
+      o.months++;
+      if (cur > o.peak) { o.peak = cur; o.tail = tail || ''; }
+      if (flexFull) o.flexFull = true;
+    }
     function over(cur, cap, label, coef) {
       let excess = cur - cap * 1.02;
       if (excess <= 0) return;
       const used = Math.min(excess, flexPool / (coef || 1));
       flexPool -= used * (coef || 1);
       excess -= used;
-      if (excess > 0.5) {
-        warn(acc, label + ': ' + Math.round(cur) + ' при ' + Math.round(cap) + ' местах' +
-          (C.flexHousing && flexPool <= 0 ? ' (свободные места коровника уже заняты)' : ''));
-      }
+      if (excess > 0.5) note(label, label, cur, cap, '', C.flexHousing && flexPool <= 0);
     }
 
-    if (milking > C.cowPlaces * 1.02) warn(acc, 'Дойные: ' + Math.round(milking) + ' при ' + C.cowPlaces + ' местах');
+    if (milking > C.cowPlaces * 1.02) note('milking', 'Дойные', milking, C.cowPlaces);
     if (dry + pen > C.dryPlaces * 1.02)
-      warn(acc, 'Родильно-сухостойный блок: ' + Math.round(dry + pen) +
-        ' (сухостой ' + Math.round(dry) + ' + родилка ' + Math.round(pen) + ') при ' + C.dryPlaces + ' местах');
+      note('dryPen', 'Родильно-сухостойный блок', dry + pen, C.dryPlaces,
+        ' (сухостой ' + Math.round(dry) + ' + родилка ' + Math.round(pen) + ')');
     over(calfTotal, C.calfPlaces, 'Телята', 0.5);
     over(heiferTotal, C.heiferPlaces, 'Ремонтный молодняк', 1);
     over(bullTotal, C.bullPlaces, 'Бычки', 1);
+    acc.flexPeak = Math.max(acc.flexPeak, C.flexHousing ? Math.max(0, (freeCow + freeDry) - flexPool) : 0);
 
     if (m % 12 === 0) {
       years.push({
@@ -354,8 +370,9 @@ MTF.calcHerd = function (p) {
         bullsSold: acc.bullsSold,
         bullWeightKg: acc.bullWeightKg,
         heifersPurchased: acc.heifersPurchased,
-        flexUsed: C.flexHousing ? Math.max(0, (freeCow + freeDry) - flexPool) : 0,
-        warnings: acc.warnings.slice(0, 6)
+        flexUsed: C.flexHousing ? Math.max(0, (freeCow + freeDry) - flexPool) : 0,   // декабрь
+        flexPeak: acc.flexPeak,                                                      // пик года по месяцам
+        warnings: yearWarnings(acc)
       });
       acc = newYear();
     }
