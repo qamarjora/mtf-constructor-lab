@@ -76,6 +76,7 @@ MTF.defaults = {
     quarantineDays: 30,      // карантин завозного поголовья
     quarantineInBarn: true,  // карантин в свободном коровнике (только первый завоз)
     firstCalfYield: 85,      // удой первотёлки, % от взрослой коровы
+    calvingSpreadMo: 0,      // разброс отёлов в завозной партии, мес. (0 — все в один месяц); влияет только на деление коров на группы
     heiferShare: 50,
     breedingAgeMo: 15,
     firstCalvingMo: 24,

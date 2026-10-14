@@ -274,6 +274,7 @@ MTF.renderInputs = function (res) {
     field('Дней в родильном отделении', 'production.calvingPenDays', 'дн') +
     field('Карантин завозного поголовья', 'production.quarantineDays', 'дн') +
     field('Удой первотёлки', 'production.firstCalfYield', '% от взр.') +
+    field('Разброс отёлов в партии', 'production.calvingSpreadMo', 'мес') +
     field('Доля тёлочек в приплоде', 'production.heiferShare', '%') +
     field('Возраст первого отёла', 'production.firstCalvingMo', 'мес') +
     field('Возраст продажи телят', 'production.calfSaleAgeMo', 'мес') +

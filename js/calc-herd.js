@@ -85,11 +85,21 @@ MTF.cohortGroups = function (P, cohorts, m) {
   let dry = 0, pen = 0, total = 0;
   cohorts.forEach(function (c) {
     total += c.n;
+    // отёл когорты ещё впереди (при разбросе отёлов в партии): корова перед отёлом — в сухостое
+    if (m < c.t0) { dry += c.n; return; }
     const phase = ((m - c.t0) % per + per) % per;
     if (phase * 30 <= (P.calvingPenDays || 0)) pen += c.n;
     else if ((per - phase) * 30 <= P.dryDays) dry += c.n;
   });
   return { dry: dry, pen: pen, milking: total - dry - pen };
+};
+
+/* Добавляет когорту. Разброс отёлов (production.calvingSpreadMo = N ≥ 2): партия делится на N равных
+   частей, отёлы которых идут подряд в N месяцев, начиная с месяца t0. При 0 и 1 — один месяц, как раньше. */
+MTF.addCohort = function (cohorts, t0, n, spread) {
+  const k = Math.max(1, Math.round(spread || 0));
+  if (!(n > 0)) return;
+  for (let i = 0; i < k; i++) cohorts.push({ t0: t0 + i, n: n / k });
 };
 
 /* Деление по долям от межотёльного периода (одинаково для любого возраста стада).
@@ -202,7 +212,7 @@ MTF.calcHerd = function (p) {
 
     if (pregHeifers[m]) {
       cows += pregHeifers[m]; firstLact += pregHeifers[m];
-      cohorts.push({ t0: m, n: pregHeifers[m] });
+      MTF.addCohort(cohorts, m, pregHeifers[m], P.calvingSpreadMo);
       acc.calvings += pregHeifers[m]; delete pregHeifers[m];
     }
     // первотёлка переходит во взрослое стадо через межотёльный период
