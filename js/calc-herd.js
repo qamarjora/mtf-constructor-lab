@@ -73,6 +73,15 @@ MTF.salePlanOf = function (P) {
   return rows;
 };
 
+/* Деление фуражных коров на сухостой, родилку и дойных.
+   Сейчас по долям от межотёльного периода: одинаково для любого возраста стада.
+   Вынесено в отдельную функцию, чтобы заменить способ расчёта в одном месте. */
+MTF.herdGroups = function (shares, cows) {
+  const dry = cows * shares.dry;
+  const pen = cows * shares.pen;
+  return { dry: dry, pen: pen, milking: cows - dry - pen };
+};
+
 MTF.calcHerd = function (p) {
   const H = p.herd, P = p.production, C = p.capacity;
   const months = p.project.horizon * 12;
@@ -268,9 +277,8 @@ MTF.calcHerd = function (p) {
     const calfTotal = heifers.slice(0, saleAge + 1).reduce((a, b) => a + b, 0) +
                       bulls.slice(0, saleAge + 1).reduce((a, b) => a + b, 0) + surpCalf;
     const bullTotal = bulls.slice(saleAge + 1).reduce((a, b) => a + b, 0);
-    const dry = cows * shares.dry;
-    const pen = cows * shares.pen;
-    const milking = cows - dry - pen;
+    const grp = MTF.herdGroups(shares, cows);
+    const dry = grp.dry, pen = grp.pen, milking = grp.milking;
 
     // свободные места коровника, доступные под молодняк
     const freeCow = C.flexHousing ? Math.max(0, C.cowPlaces - milking) : 0;
