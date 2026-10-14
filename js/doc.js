@@ -418,9 +418,12 @@ MTF.docTables = function (state, res) {
         ['<b>Общее поголовье</b>', '—', '<b>' + f.num(totalFull) + '</b>']
       ]);
     })(),
-    herdTable: dt(['Год', 'Фуражное', 'Дойные', 'Молодняк', 'Всего', 'Надой, т'],
-      res.herd.map(y => [y.year, f.num(y.cows), f.num(y.milking), f.num(y.heifers),
-        f.num(y.total), f.num(y.milkLiters / 1000)])),
+    herdTable: dt(['Год', 'Фуражное', 'Дойные, декабрь', 'Дойные, пик по месяцам (расчёт)',
+        'Сухостой + родилка, пик по месяцам (расчёт)', 'Молодняк', 'Всего', 'Надой, т'],
+      res.herd.map(y => [y.year, f.num(y.cows), f.num(y.milking), f.num(y.milkingPeak), f.num(y.dryPenPeak),
+        f.num(y.heifers), f.num(y.total), f.num(y.milkLiters / 1000)])) +
+      '<p><i>Значения «пик по месяцам (расчёт)» — максимум численности группы в течение года, полученный помесячным расчётом ' +
+      'по датам отёлов завозных партий. Это расчётная оценка для планирования размещения; она не означает недостатка мест.</i></p>',
     metricsTable: dt(['Показатель', 'Ед.', '1 ферма', N + ' ферм'], [
       ['Стоимость проекта', 'тыс. ₸', f.num(res.capex.total), f.num(res.capex.total * N)],
       ['Собственное участие', 'тыс. ₸', f.num(fd.equity), f.num(fd.equity * N)],

@@ -342,23 +342,31 @@ MTF.renderHerd = function (res) {
   const peak = res.herd.reduce((a, y) => a.cows > y.cows ? a : y, res.herd[0]);
   const tgt = res.herd.meta.target;
 
-  function bar(label, cur, cap) {
+  // cur — пик по месяцам (расчёт), dec — значение в декабре
+  function bar(label, cur, cap, dec) {
     const pv = cap > 0 ? cur / cap * 100 : (cur > 0 ? 999 : 0);
     const cls = pv > 100 ? 'over' : pv > 90 ? 'near' : '';
     return '<div class="cap"><div class="top"><span>' + label + '</span><b>' +
       f.num(cur) + ' / ' + f.num(cap) + '</b></div>' +
-      '<div class="bar"><i class="' + cls + '" style="width:' + Math.min(100, pv) + '%"></i></div></div>';
+      '<div class="bar"><i class="' + cls + '" style="width:' + Math.min(100, pv) + '%"></i></div>' +
+      (dec === undefined ? '' : '<div class="hint" style="margin:2px 0 0">декабрь: ' + f.num(dec) + '</div>') + '</div>';
   }
 
-  const all = [...new Set(res.herd.flatMap(y => y.warnings))];
-  const warnHtml = all.length
-    ? '<div class="note err"><b>Не хватает скотомест.</b><br>' + all.slice(0, 6).map(w => '• ' + w).join('<br>') + '</div>'
-    : '<div class="note ok">Поголовье помещается в проектную ёмкость на всём горизонте' +
-      (C.flexHousing && res.herd.some(y => y.flexUsed > 0) ? ' с учётом гибкого размещения молодняка.' : '.') + '</div>';
+  const warnYears = res.herd.filter(y => y.warnings.length);
+  const warnHtml = warnYears.length
+    ? '<div class="note warn"><b>Расчётные пики по месяцам выше проектных мест.</b> Это оценка модели, а не вывод о нехватке мест: ' +
+      'партии нетелей считаются отелившимися синхронно. Срок можно растянуть полем «Разброс отёлов в партии» на вкладке «Вводные».' +
+      '<details style="margin-top:6px"><summary>Подробности по годам (' + warnYears.length + ')</summary>' +
+      warnYears.map(y => '<b>' + y.year + '</b>: ' + y.warnings.join('; ')).join('<br>') + '</details></div>'
+    : '<div class="note ok">Расчётные пики по месяцам помещаются в проектную ёмкость на всём горизонте' +
+      (C.flexHousing && res.herd.some(y => y.flexPeak > 0) ? ' с учётом гибкого размещения молодняка.' : '.') + '</div>';
 
   const rows = res.herd.map(y =>
     '<tr><td class="n">' + y.year + '</td>' +
-    ['cows', 'milking', 'dry', 'pen', 'calves', 'heifers', 'bulls'].map(k => '<td class="n">' + f.num(y[k]) + '</td>').join('') +
+    ['cows', 'milking', 'dry', 'pen'].map(k => '<td class="n">' + f.num(y[k]) + '</td>').join('') +
+    '<td class="n">' + f.num(y.milkingPeak) + '</td>' +
+    '<td class="n">' + f.num(y.dryPenPeak) + '</td>' +
+    ['calves', 'heifers', 'bulls'].map(k => '<td class="n">' + f.num(y[k]) + '</td>').join('') +
     '<td class="n"><b>' + f.num(y.total) + '</b></td>' +
     '<td class="n">' + f.num(y.milkLiters / 1000) + '</td>' +
     '<td class="n">' + f.num(y.milkPerCow) + '</td>' +
@@ -366,15 +374,17 @@ MTF.renderHerd = function (res) {
     '<td class="n">' + f.num(y.heifersSold || 0) + '</td>' +
     '<td class="n">' + f.num(y.cullSold) + '</td>' +
     '<td class="n">' + f.num(y.heifersPurchased) + '</td>' +
-    '<td class="n">' + f.num(y.flexUsed) + '</td></tr>').join('');
+    '<td class="n">' + f.num(y.flexUsed) + '</td>' +
+    '<td class="n">' + f.num(y.flexPeak) + '</td></tr>').join('');
 
   return warnHtml +
-    '<div class="grid g2"><div class="card"><h3>Контроль скотомест на пике стада (' + peak.year + ')</h3>' +
-    bar('Дойные', peak.milking, C.cowPlaces) +
-    bar('Сухостой + родилка', peak.dry + peak.pen, C.dryPlaces) +
-    bar('Телята', peak.calves, C.calfPlaces) +
-    bar('Ремонтный молодняк', peak.heifers, C.heiferPlaces) +
-    bar('Бычки на откорме', peak.bulls, C.bullPlaces) +
+    '<div class="grid g2"><div class="card"><h3>Контроль скотомест в год пика стада (' + peak.year + ')</h3>' +
+    '<div class="hint" style="margin-top:0">Полоски — пик по месяцам (расчёт); под полоской значение в декабре.</div>' +
+    bar('Дойные', peak.milkingPeak, C.cowPlaces, peak.milking) +
+    bar('Сухостой + родилка', peak.dryPenPeak, C.dryPlaces, peak.dry + peak.pen) +
+    bar('Телята', peak.calvesPeak, C.calfPlaces, peak.calves) +
+    bar('Ремонтный молодняк', peak.heifersPeak, C.heiferPlaces, peak.heifers) +
+    bar('Бычки на откорме', peak.bullsPeak, C.bullPlaces, peak.bulls) +
     '<div class="hint">' + (C.flexHousing
       ? 'Гибкое размещение включено: излишек молодняка занимает свободные места коровника, пока они есть.'
       : 'Гибкое размещение выключено — каждая группа считается строго по своим местам.') + '</div></div>' +
@@ -391,10 +401,14 @@ MTF.renderHerd = function (res) {
     f.num(res.herd.reduce((a, y) => a + y.heifersPurchased, MTF.state.params.herd.startHeifers)) + '</b> гол.</div></div></div>' +
 
     '<div class="card" style="margin-top:14px"><h3>Движение поголовья по годам</h3><div class="tw"><table>' +
-    '<thead><tr><th>Год</th><th>Фураж.</th><th>Дойные</th><th>Сухост.</th><th>Родилка</th><th>Телята</th>' +
-    '<th>Молодн.</th><th>Бычки</th><th>Всего</th><th>Надой, т</th><th>л/фур.гол</th>' +
-    '<th>Прод. бычков</th><th>Прод. тёлок</th><th>Выбрак.</th><th>Закуп нет.</th><th>Гибк. места</th></tr></thead><tbody>' +
-    rows + '</tbody></table></div></div>';
+    '<thead><tr><th>Год</th><th>Фураж.</th><th>Дойные<br><small>декабрь</small></th><th>Сухост.<br><small>декабрь</small></th>' +
+    '<th>Родилка<br><small>декабрь</small></th><th>Дойные<br><small>пик года</small></th><th>Сух.+род.<br><small>пик года</small></th>' +
+    '<th>Телята</th><th>Молодн.</th><th>Бычки</th><th>Всего</th><th>Надой, т</th><th>л/фур.гол</th>' +
+    '<th>Прод. бычков</th><th>Прод. тёлок</th><th>Выбрак.</th><th>Закуп нет.</th>' +
+    '<th>Гибк. места<br><small>декабрь</small></th><th>Гибк. места<br><small>пик года</small></th></tr></thead><tbody>' +
+    rows + '</tbody></table></div>' +
+    '<div class="hint">«Пик года» — максимум по месяцам года (расчёт); остальные группы — на конец года (декабрь). ' +
+    'Деление коров на дойных, сухостой и родилку идёт по датам отёлов партий.</div></div>';
 };
 
 /* ---------- 3. Экономика ---------- */

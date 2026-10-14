@@ -171,7 +171,7 @@ MTF.calcHerd = function (p) {
       heifersSold: 0, heifersSoldValue: 0,
       dryAcc: 0, penAcc: 0, milkingAcc: 0,
       dryPeak: 0, penPeak: 0, dryPenPeak: 0, milkingPeak: 0,
-      flexPeak: 0, over: {},
+      flexPeak: 0, calfPeak: 0, heiferPeak: 0, bullPeak: 0, over: {},
       warnings: []
     };
   }
@@ -329,6 +329,9 @@ MTF.calcHerd = function (p) {
     acc.penPeak = Math.max(acc.penPeak, pen);
     acc.dryPenPeak = Math.max(acc.dryPenPeak, dry + pen);
     acc.milkingPeak = Math.max(acc.milkingPeak, milking);
+    acc.calfPeak = Math.max(acc.calfPeak, calfTotal);
+    acc.heiferPeak = Math.max(acc.heiferPeak, heiferTotal);
+    acc.bullPeak = Math.max(acc.bullPeak, bullTotal);
 
     // свободные места коровника, доступные под молодняк
     const freeCow = C.flexHousing ? Math.max(0, C.cowPlaces - milking) : 0;
@@ -368,6 +371,7 @@ MTF.calcHerd = function (p) {
         dryAvg: acc.dryAcc / 12, penAvg: acc.penAcc / 12, milkingAvg: acc.milkingAcc / 12,
         dryPeak: acc.dryPeak, penPeak: acc.penPeak, dryPenPeak: acc.dryPenPeak, milkingPeak: acc.milkingPeak,
         calves: calfTotal, heifers: heiferTotal, bulls: bullTotal,
+        calvesPeak: acc.calfPeak, heifersPeak: acc.heiferPeak, bullsPeak: acc.bullPeak,
         total: cows + calfTotal + heiferTotal + bullTotal,
         milkLiters: acc.milkLiters,
         milkPerCow: cows > 0 ? acc.milkLiters / cows : 0,
