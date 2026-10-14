@@ -275,6 +275,8 @@ MTF.renderInputs = function (res) {
     field('Карантин завозного поголовья', 'production.quarantineDays', 'дн') +
     field('Удой первотёлки', 'production.firstCalfYield', '% от взр.') +
     field('Разброс отёлов в партии', 'production.calvingSpreadMo', 'мес') +
+    '<div class="hint" style="margin-top:-4px">Влияет только на показ групп и пики мест. Надой и деньги не меняются. ' +
+      'Исключение: при кормах «покупные» меняется доля сухостоя в рационе.</div>' +
     field('Доля тёлочек в приплоде', 'production.heiferShare', '%') +
     field('Возраст первого отёла', 'production.firstCalvingMo', 'мес') +
     field('Возраст продажи телят', 'production.calfSaleAgeMo', 'мес') +
